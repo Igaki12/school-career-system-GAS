@@ -28,56 +28,56 @@ const PAYMENT_REQUIRED_HEADERS = ["支払い確認ID"]; // 支払い確認シー
 
 // --- ヘルパー関数: 支払い確認シートのヘッダーを確認し追加 ---
 function checkAndAddPaymentHeaders_(sheet) {
-  if (!sheet) {
-     throw new Error(`支払い確認シートが見つかりません。`);
-  }
-  const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-  const headers = headerRange.getValues()[0];
-  const headersToAdd = [];
-  const headerPositions = {};
-
-  // 現在の位置を取得
-  headers.forEach((header, index) => {
-    if (header) {
-      headerPositions[header.trim()] = index + 1;
+    if (!sheet) {
+        throw new Error(`支払い確認シートが見つかりません。`);
     }
-  });
+    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    const headersToAdd = [];
+    const headerPositions = {};
 
-  // 不足しているものを確認
-  PAYMENT_REQUIRED_HEADERS.forEach(requiredHeader => {
-    if (!headerPositions[requiredHeader]) {
-      headersToAdd.push(requiredHeader);
-    }
-  });
-
-  // 不足ヘッダーを追加
-  if (headersToAdd.length > 0) {
-    const nextCol = sheet.getLastColumn() + 1;
-    sheet.getRange(1, nextCol, 1, headersToAdd.length).setValues([headersToAdd]);
-    Logger.log(`支払い確認シートに不足ヘッダーを追加: ${headersToAdd.join(', ')}`);
-    headersToAdd.forEach((header, index) => {
-      headerPositions[header.trim()] = nextCol + index;
+    // 現在の位置を取得
+    headers.forEach((header, index) => {
+        if (header) {
+            headerPositions[header.trim()] = index + 1;
+        }
     });
-  }
 
-   // 必須ヘッダーの位置を再取得
-   PAYMENT_REQUIRED_HEADERS.forEach(requiredHeader => {
-      let found = false;
-      for (const header in headerPositions) {
-          if (header === requiredHeader) {
-              headerPositions[requiredHeader] = headerPositions[header];
-              found = true;
-              break;
-          }
-      }
-       if (!found) {
-           const errorMessage = `支払い確認シートの必須ヘッダー "${requiredHeader}" が見つからないか、追加できませんでした。`;
-           notifyAdminOnError_(errorMessage, 'checkAndAddPaymentHeaders_'); // 管理者に通知
-           throw new Error(errorMessage);
-       }
-   });
+    // 不足しているものを確認
+    PAYMENT_REQUIRED_HEADERS.forEach(requiredHeader => {
+        if (!headerPositions[requiredHeader]) {
+            headersToAdd.push(requiredHeader);
+        }
+    });
 
-  return headerPositions;
+    // 不足ヘッダーを追加
+    if (headersToAdd.length > 0) {
+        const nextCol = sheet.getLastColumn() + 1;
+        sheet.getRange(1, nextCol, 1, headersToAdd.length).setValues([headersToAdd]);
+        Logger.log(`支払い確認シートに不足ヘッダーを追加: ${headersToAdd.join(', ')}`);
+        headersToAdd.forEach((header, index) => {
+            headerPositions[header.trim()] = nextCol + index;
+        });
+    }
+
+    // 必須ヘッダーの位置を再取得
+    PAYMENT_REQUIRED_HEADERS.forEach(requiredHeader => {
+        let found = false;
+        for (const header in headerPositions) {
+            if (header === requiredHeader) {
+                headerPositions[requiredHeader] = headerPositions[header];
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            const errorMessage = `支払い確認シートの必須ヘッダー "${requiredHeader}" が見つからないか、追加できませんでした。`;
+            notifyAdminOnError_(errorMessage, 'checkAndAddPaymentHeaders_'); // 管理者に通知
+            throw new Error(errorMessage);
+        }
+    });
+
+    return headerPositions;
 }
 
 // --- ヘルパー関数: 事務室へエラー通知 ---
@@ -145,20 +145,23 @@ function processPaymentSubmission(e) {
         // --- バリデーション１: 支払い番号の重複チェック ---
         // 自分自身を除いた支払い番号リストを取得
         const allPaymentNumbers = paymentSheet.getRange(2, P_PAYMENT_NUMBER_COL, paymentSheet.getLastRow() - 1, 1)
-                                          .getValues()
-                                          .flat() // 2D配列を1D配列に
-                                          .filter((val, index) => val && (index + 2) !== rowIdx); // 空白と自分自身を除外
+            .getValues()
+            .flat() // 2D配列を1D配列に
+            .filter((val, index) => val && (index + 2) !== rowIdx); // 空白と自分自身を除外
 
         if (allPaymentNumbers.includes(paymentNumber)) {
             const subject = `【要確認】支払い番号重複エラー`;
             const body = `支払い確認フォームで入力された支払い番号が、既に使用されています。\n\n`
-                       + `シート: ${PAYMENT_CONFIRMATION_SHEET_NAME}\n`
-                       + `行番号: ${rowIdx}\n`
-                       + `クラス: ${studentClass}\n`
-                       + `出席番号: ${studentNumber}\n`
-                       + `入力された受付番号: ${enteredReceptionNumber}\n`
-                       + `重複した支払い番号: ${paymentNumber}\n\n`
-                       + `対応する行を確認してください。`;
+                + `シート: ${PAYMENT_CONFIRMATION_SHEET_NAME}\n`
+                + `行番号: ${rowIdx}\n`
+                + `クラス: ${studentClass}\n`
+                + `出席番号: ${studentNumber}\n`
+                + `入力された受付番号: ${enteredReceptionNumber}\n`
+                + `重複した支払い番号: ${paymentNumber}\n\n`
+                + `対応する行を確認してください。`
+                + `\n\n`
+                + `リンク:\n`
+                + `  - 支払い確認シート: ${paymentSheet.getUrl()}#gid=${paymentSheet.getSheetId()}&range=A${rowIdx}\n`;
             sendErrorToOffice_(subject, body);
             return; // 処理中断
         }
@@ -188,15 +191,18 @@ function processPaymentSubmission(e) {
         if (foundTranscriptRowIndex === -1) {
             const subject = `【要確認】受付番号・生徒情報不一致エラー`;
             let body = `支払い確認フォームで入力された受付番号に対応する調査書作成願が見つからないか、\n`
-                     + `クラス・出席番号が一致しませんでした。\n\n`
-                     + `支払い確認シート情報:\n`
-                     + `  シート: ${PAYMENT_CONFIRMATION_SHEET_NAME}\n`
-                     + `  行番号: ${rowIdx}\n`
-                     + `  クラス: ${studentClass}\n`
-                     + `  出席番号: ${studentNumber}\n`
-                     + `  入力された受付番号: ${enteredReceptionNumber}\n`
-                     + `  支払い番号: ${paymentNumber}\n\n`
-                     + `調査書作成願シート (${TRANSCRIPT_REQUEST_SHEET_NAME}) を確認してください。`;
+                + `クラス・出席番号が一致しませんでした。\n\n`
+                + `支払い確認シート情報:\n`
+                + `  シート: ${PAYMENT_CONFIRMATION_SHEET_NAME}\n`
+                + `  行番号: ${rowIdx}\n`
+                + `  クラス: ${studentClass}\n`
+                + `  出席番号: ${studentNumber}\n`
+                + `  入力された受付番号: ${enteredReceptionNumber}\n`
+                + `  支払い番号: ${paymentNumber}\n\n`
+                + `支払い確認シート (${PAYMENT_CONFIRMATION_SHEET_NAME}) の行 ${rowIdx} を確認してください。\n`
+                + `もしくは、調査書作成願シート (${TRANSCRIPT_REQUEST_SHEET_NAME}) の行 ${foundTranscriptRowIndex + 2} を確認してください。\n\n`
+                + `リンク:\n`
+                + `  - 支払い確認シート: ${paymentSheet.getUrl()}#gid=${paymentSheet.getSheetId()}&range=A${rowIdx}\n`;
             sendErrorToOffice_(subject, body);
             return; // 処理中断
         }
@@ -206,13 +212,13 @@ function processPaymentSubmission(e) {
         // 1. 支払い確認IDを記入 (Auto Increment)
         let lastPaymentConfirmId = 0;
         if (rowIdx > 2) { // 最初のデータ行でない場合
-             const paymentConfirmIds = paymentSheet.getRange(2, paymentConfirmIdCol, rowIdx - 2, 1).getValues();
-             for (let i = paymentConfirmIds.length - 1; i >= 0; i--) {
-                 if (paymentConfirmIds[i][0] && !isNaN(parseInt(paymentConfirmIds[i][0]))) {
-                     lastPaymentConfirmId = parseInt(paymentConfirmIds[i][0]);
-                     break;
-                 }
-             }
+            const paymentConfirmIds = paymentSheet.getRange(2, paymentConfirmIdCol, rowIdx - 2, 1).getValues();
+            for (let i = paymentConfirmIds.length - 1; i >= 0; i--) {
+                if (paymentConfirmIds[i][0] && !isNaN(parseInt(paymentConfirmIds[i][0]))) {
+                    lastPaymentConfirmId = parseInt(paymentConfirmIds[i][0]);
+                    break;
+                }
+            }
         }
         const newPaymentConfirmId = lastPaymentConfirmId + 1;
         paymentSheet.getRange(rowIdx, paymentConfirmIdCol).setValue(newPaymentConfirmId);
@@ -233,9 +239,9 @@ function processPaymentSubmission(e) {
             Logger.log(`警告: 調査書作成願シートの行 ${foundTranscriptRowIndex + 2} で生徒のメールアドレスが見つかりません。確認メールは送信されませんでした。`);
             // この場合も事務室や管理者に通知した方が良いかもしれない
             sendErrorToOffice_(`【情報】生徒メールアドレス不備`,
-                               `受付番号 ${enteredReceptionNumber} の支払い確認は完了しましたが、`
-                               + `調査書作成願シートに対応する生徒のメールアドレスがありませんでした。\n`
-                               + `生徒への確認メールは送信されていません。`);
+                `受付番号 ${enteredReceptionNumber} の支払い確認は完了しましたが、`
+                + `調査書作成願シートに対応する生徒のメールアドレスがありませんでした。\n`
+                + `生徒への確認メールは送信されていません。\n リンク:\n -支払い確認シート: ${paymentSheet.getUrl()}#gid=${paymentSheet.getSheetId()}&range=A${rowIdx}\n`);
         }
 
         // 3. 調査書作成願いシートの「事務室での受領」列に支払い番号を記入
@@ -250,23 +256,23 @@ function processPaymentSubmission(e) {
         // paymentSheet が定義されているか確認
         let errorContext = `支払い確認フォーム処理中にエラーが発生しました。\nシート: ${paymentSheet ? paymentSheet.getName() : '不明'}\n`;
         try {
-           const range = e.range;
-           if(range){
-              errorContext += `処理中の行: ${range.getRowIndex()}\n`;
-              errorContext += `入力値 (抜粋): ${paymentSheet.getRange(range.getRowIndex(), P_CLASS_COL, 1, 4).getValues()[0].join(', ')}\n`; // クラス〜受付番号あたり
-           }
+            const range = e.range;
+            if (range) {
+                errorContext += `処理中の行: ${range.getRowIndex()}\n`;
+                errorContext += `入力値 (抜粋): ${paymentSheet.getRange(range.getRowIndex(), P_CLASS_COL, 1, 4).getValues()[0].join(', ')}\n`; // クラス〜受付番号あたり
+            }
         } catch (e2) {
-           errorContext += "詳細なコンテキスト取得に失敗しました。\n";
+            errorContext += "詳細なコンテキスト取得に失敗しました。\n";
         }
 
         notifyAdminOnError_(errorContext + `エラー詳細: ${error}`, functionName);
 
         // 事務室にも基本的なエラー発生を通知する（詳細は管理者に）
         sendErrorToOffice_(`【重要】支払い確認処理エラー`,
-                           `支払い確認フォームの自動処理中にエラーが発生しました。\n`
-                           + `管理者へ詳細なエラーが通知されています。\n`
-                           + `手動での確認・対応が必要な可能性があります。\n\n`
-                           + `エラー概要: ${error.message}` );
+            `支払い確認フォームの自動処理中にエラーが発生しました。\n`
+            + `管理者へ詳細なエラーが通知されています。\n`
+            + `手動での確認・対応が必要な可能性があります。\n\n`
+            + `エラー概要: ${error.message} \n リンク：\n - 支払い確認シート: ${paymentSheet.getUrl()}#gid=${paymentSheet.getSheetId()}&range=A${e.range.getRowIndex()}\n`);
     }
 }
 
